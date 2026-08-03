@@ -31,6 +31,8 @@ header h2{margin:0}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
 .full{grid-column:1/-1}
 label{font-weight:bold;display:block;margin-bottom:5px}
+.required{color:#a83232;margin-left:2px}
+input.erro,select.erro,textarea.erro{border-color:#a83232;box-shadow:0 0 0 2px rgba(168,50,50,.15)}
 input,select,textarea{
   width:100%;padding:10px;border:1px solid #c9d0d8;border-radius:6px;
   font:inherit;background:#fff
@@ -92,13 +94,13 @@ tr.tratado{background:#def1da}
 
     <div class="grid">
       <div>
-        <label for="titulo">Título/Tópico</label>
-        <input id="titulo" placeholder="Ex.: Criar endpoint para Recibos">
+        <label for="titulo">Título/Tópico <span class="required">*</span></label>
+        <input id="titulo" placeholder="Ex.: Criar endpoint para Recibos" required>
       </div>
 
       <div>
-        <label for="resp">Responsável</label>
-        <input id="resp" placeholder="Nome do responsável">
+        <label for="resp">Responsável <span class="required">*</span></label>
+        <input id="resp" placeholder="Nome do responsável" required>
       </div>
 
       <div>
@@ -452,6 +454,14 @@ function guardarPedido(){
 
   if(!pedido.titulo){
     alert("Indique o título/tópico do pedido.");
+    return;
+  }
+  if(!pedido.responsavel){
+    alert("Indique o responsável pelo pedido.");
+    return;
+  }
+  if(!utilizadorAtual){
+    alert("Defina o seu nome de utilizador no cabeçalho antes de guardar.");
     return;
   }
 
