@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/Gestao_API_Web_Preenchido.html" }
+  ]
+}
