@@ -1,0 +1,598 @@
+
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão de Pedidos API</title>
+<style>
+:root{
+  --azul:#1f4e78;
+  --fundo:#f4f6f9;
+  --borda:#d9dee5;
+  --texto:#243447;
+}
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:var(--fundo);margin:0;color:var(--texto)}
+header{background:var(--azul);color:#fff;padding:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+header h2{margin:0}
+.user-section{display:flex;align-items:center;gap:10px;font-size:14px}
+.user-section label{font-weight:normal;margin:0;white-space:nowrap}
+.user-section input{
+  width:180px;padding:7px 10px;border:1px solid #a0b8d0;border-radius:6px;
+  font:inherit;background:#fff;color:var(--texto)
+}
+.user-badge{
+  background:#fff;color:var(--azul);padding:5px 12px;border-radius:999px;
+  font-weight:bold;font-size:13px
+}
+.container{max-width:1180px;margin:20px auto;padding:0 14px}
+.card{background:#fff;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.10)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.full{grid-column:1/-1}
+label{font-weight:bold;display:block;margin-bottom:5px}
+input,select,textarea{
+  width:100%;padding:10px;border:1px solid #c9d0d8;border-radius:6px;
+  font:inherit;background:#fff
+}
+textarea{min-height:90px;resize:vertical}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}
+button{
+  background:var(--azul);color:#fff;border:0;padding:10px 18px;
+  border-radius:6px;cursor:pointer;font-weight:bold
+}
+button.secondary{background:#66788a}
+button.danger{background:#a83232}
+button:hover{filter:brightness(.95)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tab{
+  background:#e9eef4;color:#24415d;border:1px solid #ccd6e0
+}
+.tab.active{background:var(--azul);color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.stat{padding:15px;border-radius:9px;text-align:center;font-weight:bold}
+.stat span{display:block;font-size:24px;margin-top:5px}
+.s-total{background:#e7f0f8}
+.s-pendente{background:#fff4cc}
+.s-desenvolvimento{background:#d9ecff}
+.s-tratado{background:#dff1dc}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:950px}
+th,td{padding:10px;border-bottom:1px solid #ddd;vertical-align:top;text-align:left}
+th{background:var(--azul);color:#fff;position:sticky;top:0}
+tr.urgente{background:#ffd9d9}
+tr.desenvolvimento{background:#d9ecff}
+tr.pendente{background:#fff7cc}
+tr.tratado{background:#def1da}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold}
+.badge-pendente{background:#ffe89a}
+.badge-desenvolvimento{background:#bcdfff}
+.badge-tratado{background:#bfe4b9}
+.muted{color:#6c7782;font-size:13px}
+.empty{text-align:center;padding:28px;color:#718096}
+@media(max-width:800px){
+  .grid,.stats{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header>
+  <h2>Gestão de Desenvolvimento da API</h2>
+  <div class="user-section">
+    <label for="userInput">Utilizador:</label>
+    <input id="userInput" placeholder="Escreva o seu nome…" onchange="guardarUtilizador(this.value.trim())">
+    <span class="user-badge" id="userDisplay"></span>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h3 id="formTitle">Novo Pedido</h3>
+
+    <div class="grid">
+      <div>
+        <label for="titulo">Título/Tópico</label>
+        <input id="titulo" placeholder="Ex.: Criar endpoint para Recibos">
+      </div>
+
+      <div>
+        <label for="resp">Responsável</label>
+        <input id="resp" placeholder="Nome do responsável">
+      </div>
+
+      <div>
+        <label for="dp">Data do pedido</label>
+        <input id="dp" type="date">
+      </div>
+
+      <div>
+        <label for="de">Data da execução</label>
+        <input id="de" type="date">
+      </div>
+
+      <div>
+        <label for="prio">Prioridade</label>
+        <select id="prio">
+          <option>Normal</option>
+          <option>Urgente</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="estado">Estado</label>
+        <select id="estado">
+          <option>Por tratar</option>
+          <option>Em desenvolvimento</option>
+          <option>Tratado</option>
+        </select>
+      </div>
+
+      <div class="full">
+        <label for="desc">Descrição</label>
+        <textarea id="desc" placeholder="Descreva o pedido, objetivo, endpoint afetado, critérios de aceitação, etc."></textarea>
+      </div>
+
+      <div class="full">
+        <label for="obs">Observações</label>
+        <textarea id="obs" placeholder="Notas adicionais, validações, dependências, dúvidas ou comentários"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button onclick="guardarPedido()">Guardar Pedido</button>
+      <button class="secondary" onclick="limparFormulario()">Limpar</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat s-total">Total<span id="statTotal">0</span></div>
+    <div class="stat s-pendente">Por tratar<span id="statPendente">0</span></div>
+    <div class="stat s-desenvolvimento">Em desenvolvimento<span id="statDev">0</span></div>
+    <div class="stat s-tratado">Tratados<span id="statTratado">0</span></div>
+  </div>
+
+  <div class="card">
+    <h3>Lista de Pedidos</h3>
+
+    <div class="tabs">
+      <button class="tab active" data-filtro="Todos" onclick="mudarFiltro('Todos',this)">Todos</button>
+      <button class="tab" data-filtro="Por tratar" onclick="mudarFiltro('Por tratar',this)">Por tratar</button>
+      <button class="tab" data-filtro="Em desenvolvimento" onclick="mudarFiltro('Em desenvolvimento',this)">Em desenvolvimento</button>
+      <button class="tab" data-filtro="Tratado" onclick="mudarFiltro('Tratado',this)">Tratado</button>
+      <button class="tab" onclick="reporDadosIniciais()">Repor dados iniciais</button>
+    </div>
+
+    <div class="grid" style="margin-bottom:15px">
+      <div>
+        <label for="pesquisa">Pesquisar</label>
+        <input id="pesquisa" placeholder="Pesquisar por título, responsável, descrição..." oninput="renderizar()">
+      </div>
+      <div>
+        <label for="filtroPrioridade">Prioridade</label>
+        <select id="filtroPrioridade" onchange="renderizar()">
+          <option value="Todas">Todas</option>
+          <option value="Normal">Normal</option>
+          <option value="Urgente">Urgente</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Responsável</th>
+            <th>Data pedido</th>
+            <th>Data execução</th>
+            <th>Prioridade</th>
+            <th>Estado</th>
+            <th>Descrição</th>
+            <th>Observações</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyPedidos"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const pedidosIniciais = [
+  {
+    "titulo": "Campos de descrição vazios",
+    "responsavel": "",
+    "dataPedido": "2026-07-31",
+    "dataExecucao": "2026-07-31",
+    "prioridade": "Normal",
+    "estado": "Tratado",
+    "descricao": "A API já não devolve refinterna, produtos, opções e coberturas com a DESCRIÇÃO vazia ou NULL.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Sessões e Autenticação",
+    "responsavel": "",
+    "dataPedido": "2026-07-31",
+    "dataExecucao": "2026-07-31",
+    "prioridade": "Normal",
+    "estado": "Tratado",
+    "descricao": "Confirmado o limite de inatividade de 5 minutos, com renovação automática do temporizador a cada nova chamada, evitando a expiração abrupta durante a paginação.",
+    "observacoes": "Assunto esclarecido."
+  },
+  {
+    "titulo": "Nomenclatura de produtos",
+    "responsavel": "",
+    "dataPedido": "2026-07-31",
+    "dataExecucao": "2026-07-31",
+    "prioridade": "Normal",
+    "estado": "Tratado",
+    "descricao": "Nomenclatura de produtos resolvida.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Filtros de Estornos",
+    "responsavel": "",
+    "dataPedido": "2026-07-31",
+    "dataExecucao": "2026-07-31",
+    "prioridade": "Normal",
+    "estado": "Tratado",
+    "descricao": "Removido o filtro por omissão (estado=E) no endpoint de Estornos. Agora devolve todos os estados por defeito, alinhando com o comportamento dos Recibos.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Edição de Atividades",
+    "responsavel": "",
+    "dataPedido": "2026-07-31",
+    "dataExecucao": "2026-07-31",
+    "prioridade": "Normal",
+    "estado": "Tratado",
+    "descricao": "Criar opção na API para edição de Atividades.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Edição de Apólices",
+    "responsavel": "",
+    "dataPedido": "2026-07-31",
+    "dataExecucao": "2026-07-31",
+    "prioridade": "Normal",
+    "estado": "Tratado",
+    "descricao": "Criar opção na API para edição de Apólices.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Edição de Sinistros",
+    "responsavel": "",
+    "dataPedido": "2026-07-31",
+    "dataExecucao": "2026-07-31",
+    "prioridade": "Normal",
+    "estado": "Tratado",
+    "descricao": "Criar opção na API para edição de Sinistros.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Registos duplicados na paginação",
+    "responsavel": "",
+    "dataPedido": "2026-07-31",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Em desenvolvimento",
+    "descricao": "Investigar a razão pela qual estão a ser devolvidos STAMPS duplicados, incluindo 7 duplicados identificados nas opções, ao iterar as diferentes páginas.",
+    "observacoes": "Pensa-se que o problema esteja resolvido. Falta validar."
+  },
+  {
+    "titulo": "Falta de STAMP das Apólices",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Em desenvolvimento",
+    "descricao": "Adicionar o campo STAMP das apólices nas entidades relacionadas com Apólices, nomeadamente Recibos, Estornos e Sinistros.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Documentação dos campos das entidades",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Em desenvolvimento",
+    "descricao": "Documentar ou adicionar explicação dos campos UTISTP, LGSTP, ATRIBSTP, RESTP, CPSTP, PRSTP, COTSTP, NREFERENCIA, BLSTP, EMPSTP, TOCSTP e LGAPSTP.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Ver movimentos de uma Atividade",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Em desenvolvimento",
+    "descricao": "Adicionar o campo movimentos aos endpoints GET das atividades ou criar um endpoint GET para consultar os movimentos de uma Atividade.",
+    "observacoes": "Exemplo: /api/v1/atividades/{STAMP}/movimentos"
+  },
+  {
+    "titulo": "Rastreabilidade de modificações 1",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Urgente",
+    "estado": "Em desenvolvimento",
+    "descricao": "Implementar o campo que regista o utilizador que fez a última alteração nas entidades Recibos, Estornos e Sinistros. Atualmente só existe nos Tomadores, Apólices e Atividades.",
+    "observacoes": "Uniformizar o nome do campo em toda a API: UTIMODIFICACAO, UTILIZADOR, modify_by_id, ou outra designação única."
+  },
+  {
+    "titulo": "Rastreabilidade de modificações 2",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Urgente",
+    "estado": "Em desenvolvimento",
+    "descricao": "Nas entidades onde o campo supostamente já está implementado, a alteração efetuada por outro utilizador não atualiza o campo para o último utilizador que efetivamente modificou o registo.",
+    "observacoes": "Necessita de correção e validação."
+  },
+  {
+    "titulo": "Rastreabilidade de Criação",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Em desenvolvimento",
+    "descricao": "Avaliar a possibilidade de adicionar um campo created_by_id, ou outro nome uniforme, nos endpoints GET List e GET por STAMP das entidades Tomadores, Apólices, Recibos, Estornos, Sinistros e Atividades.",
+    "observacoes": "O campo deverá informar o STAMP do utilizador que criou a entidade."
+  },
+  {
+    "titulo": "Enviar o UTILIZADOR em endpoints POST e PUT",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Em desenvolvimento",
+    "descricao": "Permitir o envio do STAMP do utilizador que alterou ou criou uma entidade no Gemese através dos endpoints POST e PUT.",
+    "observacoes": ""
+  },
+  {
+    "titulo": "Email nos utilizadores",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Urgente",
+    "estado": "Em desenvolvimento",
+    "descricao": "A API já devolve o email dos utilizadores, mas atualmente todos têm o campo Email preenchido com suporte@doutorvida.pt para permitir o envio pelo endereço geral da equipa. O ideal é que o campo Email da ficha contenha o email individual e que os envios utilizem o email definido em Configurar Email.",
+    "observacoes": "O sistema está a usar o email da ficha do utilizador em vez do email configurado no separador Configurar Email. Deve ser corrigido para utilizar o email geral da equipa."
+  },
+  {
+    "titulo": "Criar Recibos",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Por tratar",
+    "descricao": "Criar opção na API para criar Recibos.",
+    "observacoes": "Backlog."
+  },
+  {
+    "titulo": "Editar Recibos",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Por tratar",
+    "descricao": "Criar opção na API para editar Recibos.",
+    "observacoes": "Backlog."
+  },
+  {
+    "titulo": "Criar Estornos",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Por tratar",
+    "descricao": "Criar opção na API para criar Estornos.",
+    "observacoes": "Backlog."
+  },
+  {
+    "titulo": "Editar Estornos",
+    "responsavel": "",
+    "dataPedido": "",
+    "dataExecucao": "",
+    "prioridade": "Normal",
+    "estado": "Por tratar",
+    "descricao": "Criar opção na API para editar Estornos.",
+    "observacoes": "Backlog."
+  }
+];
+let pedidos;
+try {
+  pedidos = JSON.parse(localStorage.getItem("gestao_api_pedidos") || "null");
+} catch (e) {
+  pedidos = null;
+}
+if (!Array.isArray(pedidos) || pedidos.length === 0) {
+  pedidos = pedidosIniciais;
+  try { localStorage.setItem("gestao_api_pedidos", JSON.stringify(pedidos)); } catch (e) {}
+}
+
+// ── Utilizador atual ──
+let utilizadorAtual = "";
+try {
+  utilizadorAtual = localStorage.getItem("gestao_api_utilizador") || "";
+} catch (e) {
+  utilizadorAtual = "";
+}
+
+function guardarUtilizador(nome) {
+  utilizadorAtual = nome;
+  try { localStorage.setItem("gestao_api_utilizador", nome); } catch (e) {}
+  document.getElementById("userDisplay").textContent = nome || "(sem utilizador)";
+  document.getElementById("userInput").value = nome;
+}
+let filtroEstado = "Todos";
+let indiceEdicao = null;
+
+function guardarLocal(){
+  try { localStorage.setItem("gestao_api_pedidos", JSON.stringify(pedidos)); } catch (e) {}
+}
+
+function valor(id){ return document.getElementById(id).value.trim(); }
+
+function guardarPedido(){
+  const pedido = {
+    titulo: valor("titulo"),
+    responsavel: valor("resp"),
+    dataPedido: document.getElementById("dp").value,
+    dataExecucao: document.getElementById("de").value,
+    prioridade: document.getElementById("prio").value,
+    estado: document.getElementById("estado").value,
+    descricao: valor("desc"),
+    observacoes: valor("obs"),
+    utilizador: utilizadorAtual
+  };
+
+  if(!pedido.titulo){
+    alert("Indique o título/tópico do pedido.");
+    return;
+  }
+
+  if(indiceEdicao === null){
+    pedidos.unshift(pedido);
+  }else{
+    pedidos[indiceEdicao] = pedido;
+  }
+
+  guardarLocal();
+  limparFormulario();
+  renderizar();
+}
+
+function limparFormulario(){
+  ["titulo","dp","de","desc","obs"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("resp").value = utilizadorAtual;
+  document.getElementById("prio").value = "Normal";
+  document.getElementById("estado").value = "Por tratar";
+  indiceEdicao = null;
+  document.getElementById("formTitle").textContent = "Novo Pedido";
+}
+
+function mudarFiltro(filtro, botao){
+  filtroEstado = filtro;
+  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+  botao.classList.add("active");
+  renderizar();
+}
+
+function classeLinha(p){
+  if(p.estado === "Tratado") return "tratado";
+  if(p.estado === "Em desenvolvimento") return "desenvolvimento";
+  if(p.prioridade === "Urgente") return "urgente";
+  return "pendente";
+}
+
+function badgeEstado(estado){
+  const cls = estado === "Tratado" ? "badge-tratado" :
+              estado === "Em desenvolvimento" ? "badge-desenvolvimento" :
+              "badge-pendente";
+  return `<span class="badge ${cls}">${estado}</span>`;
+}
+
+function formatarData(data){
+  if(!data) return "";
+  const [a,m,d] = data.split("-");
+  return `${d}-${m}-${a}`;
+}
+
+function editarPedido(i){
+  const p = pedidos[i];
+  indiceEdicao = i;
+  document.getElementById("titulo").value = p.titulo || "";
+  document.getElementById("resp").value = p.responsavel || "";
+  document.getElementById("dp").value = p.dataPedido || "";
+  document.getElementById("de").value = p.dataExecucao || "";
+  document.getElementById("prio").value = p.prioridade || "Normal";
+  document.getElementById("estado").value = p.estado || "Por tratar";
+  document.getElementById("desc").value = p.descricao || "";
+  document.getElementById("obs").value = p.observacoes || "";
+  document.getElementById("formTitle").textContent = "Editar Pedido";
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+function apagarPedido(i){
+  if(confirm("Pretende apagar este pedido?")){
+    pedidos.splice(i,1);
+    guardarLocal();
+    renderizar();
+  }
+}
+
+
+function reporDadosIniciais(){
+  if(confirm("Pretende repor todos os dados iniciais? Os pedidos atualmente guardados serão substituídos.")){
+    pedidos = JSON.parse(JSON.stringify(pedidosIniciais));
+    guardarLocal();
+    limparFormulario();
+    renderizar();
+  }
+}
+
+function renderizar(){
+  const termo = document.getElementById("pesquisa").value.toLowerCase();
+  const prioridade = document.getElementById("filtroPrioridade").value;
+
+  const lista = pedidos
+    .map((p,i)=>({p,i}))
+    .filter(({p}) => filtroEstado === "Todos" || p.estado === filtroEstado)
+    .filter(({p}) => prioridade === "Todas" || p.prioridade === prioridade)
+    .filter(({p}) => {
+      const texto = [
+        p.titulo,p.responsavel,p.descricao,p.observacoes,p.estado,p.prioridade
+      ].join(" ").toLowerCase();
+      return texto.includes(termo);
+    });
+
+  const tbody = document.getElementById("tbodyPedidos");
+
+  if(lista.length === 0){
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">Não existem pedidos para os filtros selecionados.</td></tr>`;
+  }else{
+    tbody.innerHTML = lista.map(({p,i}) => `
+      <tr class="${classeLinha(p)}">
+        <td><strong>${escapeHtml(p.titulo)}</strong></td>
+        <td>${escapeHtml(p.responsavel || "")}</td>
+        <td>${formatarData(p.dataPedido)}</td>
+        <td>${formatarData(p.dataExecucao)}</td>
+        <td>${escapeHtml(p.prioridade)}</td>
+        <td>${badgeEstado(p.estado)}</td>
+        <td>${escapeHtml(p.descricao || "")}</td>
+        <td>${escapeHtml(p.observacoes || "")}</td>
+        <td>
+          <button onclick="editarPedido(${i})">Editar</button>
+          <button class="danger" onclick="apagarPedido(${i})">Apagar</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  document.getElementById("statTotal").textContent = pedidos.length;
+  document.getElementById("statPendente").textContent = pedidos.filter(p=>p.estado==="Por tratar").length;
+  document.getElementById("statDev").textContent = pedidos.filter(p=>p.estado==="Em desenvolvimento").length;
+  document.getElementById("statTratado").textContent = pedidos.filter(p=>p.estado==="Tratado").length;
+}
+
+function escapeHtml(text){
+  return String(text || "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+// ── Inicialização ──
+document.getElementById("userInput").value = utilizadorAtual;
+document.getElementById("userDisplay").textContent = utilizadorAtual || "(sem utilizador)";
+document.getElementById("resp").value = utilizadorAtual;
+renderizar();
+</script>
+</body>
+</html>
