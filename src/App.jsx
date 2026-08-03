@@ -132,6 +132,12 @@ function App() {
           <p className="text-center text-gray-400 py-12">A carregar...</p>
         ) : (
           <>
+            <PedidoForm
+              onGuardar={guardarPedido}
+              pedidoEdit={indiceEdicao !== null ? pedidos[indiceEdicao] : null}
+              utilizadorAtual={utilizadorAtual}
+              onLimpar={limparFormulario}
+            />
             <StatsBar stats={stats} />
             <FilterTabs
               filtroEstado={filtroEstado}
@@ -141,12 +147,6 @@ function App() {
               termoPesquisa={termoPesquisa}
               onMudarPesquisa={setTermoPesquisa}
               onReporDados={reporDadosIniciais}
-            />
-            <PedidoForm
-              onGuardar={guardarPedido}
-              pedidoEdit={indiceEdicao !== null ? pedidos[indiceEdicao] : null}
-              utilizadorAtual={utilizadorAtual}
-              onLimpar={limparFormulario}
             />
             <PedidoTable
               pedidos={pedidos}
