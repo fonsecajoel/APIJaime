@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from './supabase'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { getPedidos, savePedidos } from './redis'
 import { pedidosIniciais } from './data/initialData'
 import Header from './components/Header'
 import StatsBar from './components/StatsBar'
@@ -8,13 +8,23 @@ import PedidoForm from './components/PedidoForm'
 import PedidoTable from './components/PedidoTable'
 import UpdateLog from './components/UpdateLog'
 
+const POLL_INTERVAL = 2000
+
+function useLocalStorage(key, fallback) {
+  const [value, setValue] = useState(() => {
+    try { return localStorage.getItem(key) || fallback }
+    catch { return fallback }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(key, value) } catch {}
+  }, [key, value])
+  return [value, setValue]
+}
+
 function App() {
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [utilizadorAtual, setUtilizadorAtual] = useState(() => {
-    try { return localStorage.getItem('gestao_api_utilizador') || '' }
-    catch { return '' }
-  })
+  const [utilizadorAtual, setUtilizadorAtual] = useLocalStorage('gestao_api_utilizador', '')
 
   const [filtroEstado, setFiltroEstado] = useState('Todos')
   const [filtroPrioridade, setFiltroPrioridade] = useState('Todas')
@@ -22,78 +32,30 @@ function App() {
   const [indiceEdicao, setIndiceEdicao] = useState(null)
   const [pedidoSelecionado, setPedidoSelecionado] = useState(null)
 
-  const fromDb = (row) => ({
-    id: row.id,
-    titulo: row.titulo,
-    responsavel: row.responsavel,
-    dataPedido: row.data_pedido,
-    dataExecucao: row.data_execucao,
-    prioridade: row.prioridade,
-    estado: row.estado,
-    descricao: row.descricao,
-    observacoes: row.observacoes,
-    utilizador: row.utilizador,
-    updates: row.updates || [],
-  })
+  const pedidosRef = useRef(pedidos)
+  pedidosRef.current = pedidos
 
-  useEffect(() => {
-    let mounted = true
-
-    async function carregar() {
-      const { data, error } = await supabase
-        .from('pedidos')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (!mounted) return
-
-      if (error) {
-        console.error('Erro ao carregar pedidos:', error)
-        setPedidos(pedidosIniciais)
-      } else if (data && data.length > 0) {
-        setPedidos(data.map(fromDb))
-      } else {
-        setPedidos(pedidosIniciais)
-      }
-      setLoading(false)
+  const carregarPedidos = useCallback(async () => {
+    const data = await getPedidos()
+    if (data !== null) {
+      setPedidos(data)
+    } else if (pedidosRef.current.length === 0) {
+      setPedidos(pedidosIniciais)
+      savePedidos(pedidosIniciais)
     }
+    setLoading(false)
+  }, [])
 
-    carregar()
-
-    const channel = supabase
-      .channel('pedidos-realtime')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'pedidos' },
-        (payload) => {
-          if (!mounted) return
-          const row = payload.new
-
-          switch (payload.eventType) {
-            case 'INSERT':
-              setPedidos(prev => [fromDb(row), ...prev])
-              break
-            case 'UPDATE':
-              setPedidos(prev => prev.map(p =>
-                p.id === row.id ? { ...p, ...fromDb(row) } : p
-              ))
-              break
-            case 'DELETE':
-              setPedidos(prev => prev.filter(p => p.id !== payload.old.id))
-              break
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      mounted = false
-      supabase.removeChannel(channel)
-    }
+  const persistir = useCallback(async (novosPedidos) => {
+    setPedidos(novosPedidos)
+    savePedidos(novosPedidos)
   }, [])
 
   useEffect(() => {
-    try { localStorage.setItem('gestao_api_utilizador', utilizadorAtual) } catch {}
-  }, [utilizadorAtual])
+    carregarPedidos()
+    const interval = setInterval(carregarPedidos, POLL_INTERVAL)
+    return () => clearInterval(interval)
+  }, [carregarPedidos])
 
   const stats = {
     totalPedidos: pedidos.length,
@@ -102,37 +64,30 @@ function App() {
     tratados: pedidos.filter(p => p.estado === 'Tratado').length,
   }
 
-  const guardarPedido = useCallback(async (pedido) => {
-    const dbPedido = {
-      titulo: pedido.titulo,
+  const guardarPedido = useCallback((pedido) => {
+    const novo = {
+      ...pedido,
+      id: pedido.id || Date.now(),
       responsavel: pedido.responsavel || utilizadorAtual,
-      data_pedido: pedido.dataPedido || '',
-      data_execucao: pedido.dataExecucao || '',
-      prioridade: pedido.prioridade || 'Normal',
-      estado: pedido.estado || 'Por tratar',
-      descricao: pedido.descricao || '',
-      observacoes: pedido.observacoes || '',
       utilizador: utilizadorAtual,
       updates: pedido.updates || [],
     }
 
+    let novos
     if (indiceEdicao !== null) {
-      const id = pedidos[indiceEdicao]?.id
-      if (id) {
-        await supabase.from('pedidos').update(dbPedido).eq('id', id)
-      }
+      novos = [...pedidosRef.current]
+      novos[indiceEdicao] = novo
       setIndiceEdicao(null)
     } else {
-      await supabase.from('pedidos').insert(dbPedido)
+      novos = [novo, ...pedidosRef.current]
     }
-  }, [indiceEdicao, pedidos, utilizadorAtual])
+    persistir(novos)
+  }, [indiceEdicao, utilizadorAtual, persistir])
 
-  const apagarPedido = useCallback(async (index) => {
-    const id = pedidos[index]?.id
-    if (id) {
-      await supabase.from('pedidos').delete().eq('id', id)
-    }
-  }, [pedidos])
+  const apagarPedido = useCallback((index) => {
+    const novos = pedidosRef.current.filter((_, i) => i !== index)
+    persistir(novos)
+  }, [persistir])
 
   const editarPedido = useCallback((index) => {
     setIndiceEdicao(index)
@@ -146,27 +101,9 @@ function App() {
     setFiltroEstado(estado)
   }, [])
 
-  const guardarUtilizador = useCallback((nome) => {
-    setUtilizadorAtual(nome)
-  }, [])
-
-  const reporDadosIniciais = useCallback(async () => {
-    await supabase.from('pedidos').delete().neq('id', 0)
-    for (const p of pedidosIniciais) {
-      await supabase.from('pedidos').insert({
-        titulo: p.titulo,
-        responsavel: p.responsavel,
-        data_pedido: p.dataPedido,
-        data_execucao: p.dataExecucao,
-        prioridade: p.prioridade,
-        estado: p.estado,
-        descricao: p.descricao,
-        observacoes: p.observacoes,
-        utilizador: '',
-        updates: [],
-      })
-    }
-  }, [])
+  const reporDadosIniciais = useCallback(() => {
+    persistir(pedidosIniciais)
+  }, [persistir])
 
   const abrirUpdates = useCallback((index) => {
     setPedidoSelecionado(index)
@@ -176,18 +113,19 @@ function App() {
     setPedidoSelecionado(null)
   }, [])
 
-  const adicionarUpdate = useCallback(async (index, texto) => {
-    const pedido = pedidos[index]
-    if (!pedido?.id) return
-    const novosUpdates = [...(pedido.updates || []), { texto, data: new Date().toISOString() }]
-    await supabase.from('pedidos').update({ updates: novosUpdates }).eq('id', pedido.id)
-  }, [pedidos])
+  const adicionarUpdate = useCallback((index, texto) => {
+    const novos = [...pedidosRef.current]
+    const pedido = { ...novos[index] }
+    pedido.updates = [...(pedido.updates || []), { texto, data: new Date().toISOString() }]
+    novos[index] = pedido
+    persistir(novos)
+  }, [persistir])
 
   return (
     <div className="min-h-screen bg-gray-100">
       <Header
         utilizadorAtual={utilizadorAtual}
-        onGuardarUtilizador={guardarUtilizador}
+        onGuardarUtilizador={setUtilizadorAtual}
       />
       <div className="max-w-7xl mx-auto px-4 py-6">
         {loading ? (
