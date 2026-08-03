@@ -1,36 +1,33 @@
 const REDIS_URL = import.meta.env.VITE_UPSTASH_REDIS_REST_URL
 const REDIS_TOKEN = import.meta.env.VITE_UPSTASH_REDIS_REST_TOKEN
 
-async function redis(command, ...args) {
+async function redisCommand(command, ...args) {
   if (!REDIS_URL || !REDIS_TOKEN) {
     console.warn('Upstash Redis não configurado. Usando localStorage como fallback.')
     return null
   }
-  const res = await fetch(`${REDIS_URL}/${command}/${args.join('/')}`, {
-    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
-  })
-  return res.json()
-}
-
-async function redisSet(key, value) {
-  if (!REDIS_URL || !REDIS_TOKEN) return null
-  const res = await fetch(`${REDIS_URL}/set/${key}`, {
+  const res = await fetch(REDIS_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${REDIS_TOKEN}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(value),
+    body: JSON.stringify([command, ...args]),
   })
-  return res.json()
+  const data = await res.json()
+  if (data.error) {
+    console.error('Redis error:', data.error)
+    return null
+  }
+  return data.result
 }
 
 export async function getPedidos() {
-  const result = await redis('get', 'pedidos')
-  if (!result || result.result == null) return null
-  return JSON.parse(result.result)
+  const result = await redisCommand('GET', 'pedidos')
+  if (!result) return null
+  try { return JSON.parse(result) } catch { return null }
 }
 
 export async function savePedidos(pedidos) {
-  return redisSet('pedidos', JSON.stringify(pedidos))
+  return redisCommand('SET', 'pedidos', JSON.stringify(pedidos))
 }
